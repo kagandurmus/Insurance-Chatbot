@@ -57,10 +57,8 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       </AnimatePresence>
       
       {/* Sidebar */}
-      <motion.aside
-        initial={false}
-        animate={{ x: isOpen ? 0 : -280 }}
-        className={`fixed lg:static inset-y-0 left-0 z-50 w-[280px] bg-white border-r border-slate-100 flex flex-col lg:transform-none transition-transform duration-300 ${
+      <aside
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-[280px] bg-white border-r border-slate-100 flex flex-col transition-transform duration-300 ${
           isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
@@ -97,7 +95,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
             <p className="text-xs text-slate-500 mt-2">RAG + LLM Evaluation</p>
           </div>
         </div>
-      </motion.aside>
+      </aside>
     </>
   );
 };
