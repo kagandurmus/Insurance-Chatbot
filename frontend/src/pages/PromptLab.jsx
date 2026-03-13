@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Zap, Play, Plus, Trash2, Copy, Check, Loader2, FlaskConical, ChevronRight } from "lucide-react";
+import { Zap, Play, Plus, Trash2, Loader2, FlaskConical, ChevronRight, HelpCircle, AlertTriangle, Thermometer } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Textarea } from "../components/ui/textarea";
@@ -11,9 +11,59 @@ import { Badge } from "../components/ui/badge";
 import { ScrollArea } from "../components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "../components/ui/dialog";
 import { Label } from "../components/ui/label";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../components/ui/tooltip";
+import { Alert, AlertDescription } from "../components/ui/alert";
 import { toast } from "sonner";
 import axios from "axios";
 import { API } from "../App";
+
+// Metric explanations
+const METRIC_INFO = {
+  rouge: {
+    title: "ROUGE-L Score",
+    description: "Misst die längste gemeinsame Teilsequenz (LCS) zwischen Antwort und Referenztext. Erfasst die Satzstruktur-Ähnlichkeit.",
+    interpretation: "Höher = Bessere Übereinstimmung mit dem Quellmaterial. 0% = keine Übereinstimmung, 100% = perfekte Übereinstimmung.",
+    ideal: "> 30% gilt als gut für generative Aufgaben"
+  },
+  bert: {
+    title: "BERTScore F1",
+    description: "Nutzt kontextuelle Embeddings um semantische Ähnlichkeit zu messen, nicht nur Wortübereinstimmung.",
+    interpretation: "Höher = Semantisch ähnlicher zum Referenztext. Berücksichtigt Synonyme und Umschreibungen.",
+    ideal: "> 50% zeigt gute semantische Übereinstimmung"
+  },
+  faithfulness: {
+    title: "Faithfulness Score",
+    description: "Misst wie treu die Antwort dem Quellmaterial bleibt. Berechnet den Anteil relevanter Begriffe aus dem Kontext.",
+    interpretation: "Höher = Antwort basiert stärker auf dem Quellmaterial statt zu halluzinieren.",
+    ideal: "> 40% zeigt gute Quelltreue"
+  }
+};
+
+const MetricInfoButton = ({ metricKey }) => {
+  const info = METRIC_INFO[metricKey];
+  return (
+    <TooltipProvider>
+      <Tooltip delayDuration={0}>
+        <TooltipTrigger asChild>
+          <button className="ml-1 text-slate-400 hover:text-slate-600 transition-colors">
+            <HelpCircle className="w-4 h-4" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-xs p-4 bg-white border shadow-lg">
+          <div className="space-y-2">
+            <p className="font-semibold text-slate-800">{info.title}</p>
+            <p className="text-sm text-slate-600">{info.description}</p>
+            <div className="pt-2 border-t">
+              <p className="text-xs text-emerald-700 font-medium">Interpretation:</p>
+              <p className="text-xs text-slate-500">{info.interpretation}</p>
+            </div>
+            <p className="text-xs text-blue-600 font-medium">{info.ideal}</p>
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+};
 
 const PromptLab = () => {
   const [prompts, setPrompts] = useState([]);
@@ -125,6 +175,12 @@ const PromptLab = () => {
       toast.error("Fehler beim Löschen");
     }
   };
+
+  // Get prompt details by ID
+  const getPromptById = (id) => prompts.find(p => p.id === id);
+  const promptA = getPromptById(selectedPromptA);
+  const promptB = getPromptById(selectedPromptB);
+  const isSamePrompt = selectedPromptA === selectedPromptB;
 
   const promptTypeColors = {
     "zero-shot": "bg-blue-100 text-blue-700",
@@ -246,8 +302,17 @@ const PromptLab = () => {
                     <div>
                       <Label className="mb-2 block">Variante A</Label>
                       <Select value={selectedPromptA} onValueChange={setSelectedPromptA}>
-                        <SelectTrigger data-testid="select-prompt-a">
-                          <SelectValue placeholder="Prompt A wählen" />
+                        <SelectTrigger data-testid="select-prompt-a" className="h-auto py-3">
+                          <SelectValue placeholder="Prompt A wählen">
+                            {promptA && (
+                              <div className="flex items-center gap-2">
+                                <span>{promptA.name}</span>
+                                <Badge variant="outline" className={promptTypeColors[promptA.prompt_type]}>
+                                  {promptA.prompt_type}
+                                </Badge>
+                              </div>
+                            )}
+                          </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
                           {prompts.map((p) => (
@@ -266,8 +331,17 @@ const PromptLab = () => {
                     <div>
                       <Label className="mb-2 block">Variante B</Label>
                       <Select value={selectedPromptB} onValueChange={setSelectedPromptB}>
-                        <SelectTrigger data-testid="select-prompt-b">
-                          <SelectValue placeholder="Prompt B wählen" />
+                        <SelectTrigger data-testid="select-prompt-b" className="h-auto py-3">
+                          <SelectValue placeholder="Prompt B wählen">
+                            {promptB && (
+                              <div className="flex items-center gap-2">
+                                <span>{promptB.name}</span>
+                                <Badge variant="outline" className={promptTypeColors[promptB.prompt_type]}>
+                                  {promptB.prompt_type}
+                                </Badge>
+                              </div>
+                            )}
+                          </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
                           {prompts.map((p) => (
@@ -284,6 +358,18 @@ const PromptLab = () => {
                       </Select>
                     </div>
                   </div>
+
+                  {/* Same Prompt Warning */}
+                  {isSamePrompt && selectedPromptA && (
+                    <Alert className="bg-amber-50 border-amber-200">
+                      <AlertTriangle className="h-4 w-4 text-amber-600" />
+                      <AlertDescription className="text-amber-800">
+                        <span className="font-medium">Hinweis:</span> Sie vergleichen denselben Prompt. 
+                        Unterschiede in den Antworten entstehen durch die inhärente Zufälligkeit (Temperature) des LLM.
+                        Dies kann nützlich sein, um die Konsistenz eines Prompts zu testen.
+                      </AlertDescription>
+                    </Alert>
+                  )}
 
                   {/* Test Query */}
                   <div>
@@ -383,7 +469,10 @@ const PromptLab = () => {
                           className="mt-6 grid md:grid-cols-3 gap-4"
                         >
                           <div className="bg-white rounded-xl p-4 border">
-                            <h4 className="font-medium text-sm text-slate-500 mb-2">ROUGE-L Score</h4>
+                            <div className="flex items-center mb-2">
+                              <h4 className="font-medium text-sm text-slate-500">ROUGE-L Score</h4>
+                              <MetricInfoButton metricKey="rouge" />
+                            </div>
                             <div className="flex items-end gap-4">
                               <div>
                                 <span className="text-xs text-slate-400">A:</span>
@@ -400,7 +489,10 @@ const PromptLab = () => {
                             </div>
                           </div>
                           <div className="bg-white rounded-xl p-4 border">
-                            <h4 className="font-medium text-sm text-slate-500 mb-2">BERTScore F1</h4>
+                            <div className="flex items-center mb-2">
+                              <h4 className="font-medium text-sm text-slate-500">BERTScore F1</h4>
+                              <MetricInfoButton metricKey="bert" />
+                            </div>
                             <div className="flex items-end gap-4">
                               <div>
                                 <span className="text-xs text-slate-400">A:</span>
@@ -417,7 +509,10 @@ const PromptLab = () => {
                             </div>
                           </div>
                           <div className="bg-white rounded-xl p-4 border">
-                            <h4 className="font-medium text-sm text-slate-500 mb-2">Faithfulness</h4>
+                            <div className="flex items-center mb-2">
+                              <h4 className="font-medium text-sm text-slate-500">Faithfulness</h4>
+                              <MetricInfoButton metricKey="faithfulness" />
+                            </div>
                             <div className="flex items-end gap-4">
                               <div>
                                 <span className="text-xs text-slate-400">A:</span>
@@ -511,6 +606,49 @@ const PromptLab = () => {
               </Card>
             </TabsContent>
           </Tabs>
+
+          {/* Improvement Suggestions */}
+          <Card className="mt-8 border-dashed border-2 border-slate-300 bg-slate-50/50">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Thermometer className="w-5 h-5 text-slate-500" />
+                Verbesserungsvorschläge
+              </CardTitle>
+              <CardDescription>Ideen zur Weiterentwicklung des Prompt Labs</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid md:grid-cols-2 gap-4 text-sm">
+                <div className="space-y-3">
+                  <div className="p-3 bg-white rounded-lg border">
+                    <p className="font-medium text-slate-700">🎛️ Temperature-Kontrolle</p>
+                    <p className="text-slate-500 text-xs mt-1">Slider für LLM-Temperature (0.0-1.0) um Kreativität vs. Determinismus zu steuern</p>
+                  </div>
+                  <div className="p-3 bg-white rounded-lg border">
+                    <p className="font-medium text-slate-700">📊 Mehrfach-Durchläufe</p>
+                    <p className="text-slate-500 text-xs mt-1">N-mal gleiche Anfrage ausführen und statistische Varianz anzeigen</p>
+                  </div>
+                  <div className="p-3 bg-white rounded-lg border">
+                    <p className="font-medium text-slate-700">👥 Human Evaluation</p>
+                    <p className="text-slate-500 text-xs mt-1">Nutzer können Antworten A/B bewerten für qualitative Feedback</p>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div className="p-3 bg-white rounded-lg border">
+                    <p className="font-medium text-slate-700">📈 Trend-Analyse</p>
+                    <p className="text-slate-500 text-xs mt-1">Zeitliche Entwicklung der Metriken pro Prompt visualisieren</p>
+                  </div>
+                  <div className="p-3 bg-white rounded-lg border">
+                    <p className="font-medium text-slate-700">🔄 Auto-Iteration</p>
+                    <p className="text-slate-500 text-xs mt-1">LLM automatisch Prompts verbessern lassen basierend auf Metriken</p>
+                  </div>
+                  <div className="p-3 bg-white rounded-lg border">
+                    <p className="font-medium text-slate-700">📝 Referenz-Antworten</p>
+                    <p className="text-slate-500 text-xs mt-1">Gold-Standard Antworten definieren für präzisere Evaluation</p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>
