@@ -1,8 +1,8 @@
 from fastapi import FastAPI, APIRouter, HTTPException
+from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
-from rouge_score import rouge_scorer
 import os
 import logging
 from pathlib import Path
@@ -11,22 +11,25 @@ from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timezone
 import google.generativeai as genai
-from contextlib import asynccontextmanager
+from rouge_score import rouge_scorer  
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-# LLM Configuration
-GEMINI_KEY = os.environ.get('GEMINI_API_KEY')
+GEMINI_KEY = os.environ.get('GEMINI_API_KEY') 
 genai.configure(api_key=GEMINI_KEY)
 
+@asynccontextmanager                         
+async def lifespan(app: FastAPI):
+    yield
+    client.close()
+
 # Create the main app
-app = FastAPI(title="SchutzKI - German Insurance Chatbot")
+app = FastAPI(title="SchutzKI - German Insurance Chatbot", lifespan=lifespan)
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
