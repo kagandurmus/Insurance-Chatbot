@@ -85,6 +85,17 @@ class ExperimentCreate(BaseModel):
     query: str
     prompt_a_id: str
     prompt_b_id: str
+    temperature: float = 0.7
+
+class HumanEvaluation(BaseModel):
+    experiment_id: str
+    score_a: int  # 1-10
+    score_b: int  # 1-10
+    winner: str  # "a", "b", or "tie"
+    feedback: Optional[str] = None
+
+class PromptImprovementRequest(BaseModel):
+    prompt_id: str
 
 class EvaluationResult(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -167,8 +178,8 @@ KNOWLEDGE_BASE = build_knowledge_base()
 
 # ==================== LLM HELPERS ====================
 
-async def get_llm_response(prompt: str, system_message: str, session_id: str) -> str:
-    """Get response from Gemini Flash"""
+async def get_llm_response(prompt: str, system_message: str, session_id: str, temperature: float = 0.7) -> str:
+    """Get response from Gemini Flash with configurable temperature"""
     try:
         chat = LlmChat(
             api_key=EMERGENT_KEY,
@@ -357,12 +368,12 @@ Benutzerfrage: {experiment.query}
 
 Bitte beantworte die Frage basierend auf dem Kontext."""
 
-    # Run both prompts
+    # Run both prompts with the specified temperature
     session_a = f"exp-{uuid.uuid4()}-a"
     session_b = f"exp-{uuid.uuid4()}-b"
     
-    response_a = await get_llm_response(full_prompt, prompt_a['system_prompt'], session_a)
-    response_b = await get_llm_response(full_prompt, prompt_b['system_prompt'], session_b)
+    response_a = await get_llm_response(full_prompt, prompt_a['system_prompt'], session_a, experiment.temperature)
+    response_b = await get_llm_response(full_prompt, prompt_b['system_prompt'], session_b, experiment.temperature)
     
     # Save experiment - create response dict first
     exp_id = str(uuid.uuid4())
@@ -375,6 +386,7 @@ Bitte beantworte die Frage basierend auf dem Kontext."""
         "prompt_b_name": prompt_b.get('name', 'Unknown'),
         "response_a": response_a,
         "response_b": response_b,
+        "temperature": experiment.temperature,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.experiments.insert_one({**exp_doc})  # Insert a copy
@@ -473,6 +485,84 @@ async def get_evaluation(experiment_id: str):
     if not evaluation:
         raise HTTPException(status_code=404, detail="Evaluation nicht gefunden")
     return evaluation
+
+# Human Evaluation Routes
+@api_router.post("/human-evaluate")
+async def submit_human_evaluation(evaluation: HumanEvaluation):
+    """Submit human evaluation for an experiment"""
+    # Validate scores
+    if not (1 <= evaluation.score_a <= 10 and 1 <= evaluation.score_b <= 10):
+        raise HTTPException(status_code=400, detail="Scores müssen zwischen 1 und 10 liegen")
+    if evaluation.winner not in ["a", "b", "tie"]:
+        raise HTTPException(status_code=400, detail="Winner muss 'a', 'b' oder 'tie' sein")
+    
+    eval_doc = {
+        "id": str(uuid.uuid4()),
+        "experiment_id": evaluation.experiment_id,
+        "score_a": evaluation.score_a,
+        "score_b": evaluation.score_b,
+        "winner": evaluation.winner,
+        "feedback": evaluation.feedback,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.human_evaluations.insert_one({**eval_doc})
+    
+    return eval_doc
+
+@api_router.get("/human-evaluations/{experiment_id}")
+async def get_human_evaluations(experiment_id: str):
+    """Get human evaluations for an experiment"""
+    evaluations = await db.human_evaluations.find({"experiment_id": experiment_id}, {"_id": 0}).to_list(100)
+    return {"evaluations": evaluations}
+
+# AI Prompt Improvement Routes
+@api_router.post("/prompts/improve")
+async def improve_prompt(request: PromptImprovementRequest):
+    """Use AI to suggest improvements for a prompt based on best practices"""
+    # Get the prompt
+    prompt = await db.prompts.find_one({"id": request.prompt_id}, {"_id": 0})
+    if not prompt:
+        prompt = next((p for p in DEFAULT_PROMPTS if p['id'] == request.prompt_id), None)
+    
+    if not prompt:
+        raise HTTPException(status_code=404, detail="Prompt nicht gefunden")
+    
+    improvement_system = """Du bist ein Experte für Prompt Engineering. Deine Aufgabe ist es, System-Prompts zu verbessern.
+
+Wende folgende Best Practices an:
+1. **Klare Rollendefiition**: Der Prompt sollte eine spezifische Persona/Rolle definieren
+2. **Strukturierte Anweisungen**: Nutze nummerierte Listen oder Bullet Points für komplexe Aufgaben
+3. **Kontext-Priming**: Füge relevanten Kontext hinzu, der die Antwortqualität verbessert
+4. **Output-Format**: Spezifiziere das gewünschte Antwortformat explizit
+5. **Constraints**: Definiere klare Grenzen (z.B. Länge, Tonalität, was zu vermeiden ist)
+6. **Few-Shot Examples**: Füge 1-2 Beispiele hinzu wenn sinnvoll
+7. **Chain-of-Thought**: Fordere schrittweises Denken bei komplexen Aufgaben
+
+Antworte NUR mit dem verbesserten Prompt - keine Erklärungen, keine Einleitung.
+Der verbesserte Prompt muss auf Deutsch sein und für einen deutschen Versicherungs-Chatbot optimiert."""
+
+    improvement_request = f"""Hier ist der aktuelle System-Prompt:
+
+---
+{prompt['system_prompt']}
+---
+
+Prompt-Typ: {prompt.get('prompt_type', 'zero-shot')}
+Name: {prompt.get('name', 'Unbekannt')}
+Beschreibung: {prompt.get('description', '')}
+
+Erstelle eine verbesserte Version dieses Prompts, die die Best Practices des Prompt Engineering anwendet.
+Der verbesserte Prompt sollte für einen deutschen Versicherungs-Chatbot (Haftpflicht, KFZ, Hausrat) optimiert sein."""
+
+    session_id = f"improve-{uuid.uuid4()}"
+    improved_prompt = await get_llm_response(improvement_request, improvement_system, session_id, 0.7)
+    
+    return {
+        "original_prompt": prompt['system_prompt'],
+        "improved_prompt": improved_prompt,
+        "prompt_id": request.prompt_id,
+        "prompt_name": prompt.get('name', 'Unknown')
+    }
 
 # Recommendation Routes
 @api_router.post("/recommend", response_model=RecommendationResponse)

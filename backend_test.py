@@ -97,12 +97,20 @@ class SchutzKIAPITester:
         experiment_data = {
             "query": "Brauche ich eine Vollkasko?",
             "prompt_a_id": "zero-shot",
-            "prompt_b_id": "few-shot"
+            "prompt_b_id": "few-shot",
+            "temperature": 0.7
         }
         success, response = self.run_test("Run A/B Experiment", "POST", "api/experiments/run", 200, data=experiment_data)
         if success and 'id' in response:
             experiment_id = response['id']
             self.log(f"   ✓ Experiment created: {experiment_id}")
+            
+            # Verify temperature was stored
+            if 'temperature' in response and response['temperature'] == 0.7:
+                self.log(f"   ✓ Temperature parameter working: {response['temperature']}")
+            else:
+                self.log(f"   ❌ Temperature parameter missing or incorrect")
+                return False
             
             # Test evaluation
             eval_success, eval_response = self.run_test("Evaluate Experiment", "POST", f"api/evaluate/{experiment_id}", 200)
@@ -177,6 +185,110 @@ class SchutzKIAPITester:
             return False
         return False
 
+    def test_human_evaluation(self):
+        """Test human evaluation functionality"""
+        # First create an experiment
+        experiment_data = {
+            "query": "Was ist besser: Teilkasko oder Vollkasko?",
+            "prompt_a_id": "zero-shot",
+            "prompt_b_id": "few-shot",
+            "temperature": 0.5
+        }
+        success, response = self.run_test("Create Experiment for Human Eval", "POST", "api/experiments/run", 200, data=experiment_data)
+        
+        if not success or 'id' not in response:
+            self.log("❌ Failed to create experiment for human evaluation test")
+            return False
+            
+        experiment_id = response['id']
+        self.log(f"   ✓ Created experiment for evaluation: {experiment_id}")
+        
+        # Test human evaluation submission
+        eval_data = {
+            "experiment_id": experiment_id,
+            "score_a": 8,
+            "score_b": 6,
+            "winner": "a",
+            "feedback": "Variante A war präziser und informativer"
+        }
+        
+        eval_success, eval_response = self.run_test("Submit Human Evaluation", "POST", "api/human-evaluate", 200, data=eval_data)
+        
+        if eval_success and 'id' in eval_response:
+            self.log(f"   ✓ Human evaluation submitted successfully")
+            
+            # Test retrieving human evaluation
+            get_success, get_response = self.run_test("Get Human Evaluations", "GET", f"api/human-evaluations/{experiment_id}", 200)
+            if get_success and 'evaluations' in get_response:
+                self.log(f"   ✓ Retrieved {len(get_response['evaluations'])} human evaluations")
+                return True
+            return False
+        return False
+
+    def test_prompt_improvement(self):
+        """Test AI prompt improvement functionality"""
+        # Get available prompts first
+        success, prompts_response = self.run_test("Get Prompts for Improvement", "GET", "api/prompts", 200)
+        
+        if not success or 'prompts' not in prompts_response or len(prompts_response['prompts']) == 0:
+            self.log("❌ No prompts available for improvement test")
+            return False
+        
+        # Use the first available prompt
+        prompt_to_improve = prompts_response['prompts'][0]
+        prompt_id = prompt_to_improve['id']
+        self.log(f"   ✓ Testing improvement for prompt: {prompt_to_improve['name']}")
+        
+        # Test prompt improvement
+        improvement_data = {
+            "prompt_id": prompt_id
+        }
+        
+        success, response = self.run_test("AI Prompt Improvement", "POST", "api/prompts/improve", 200, data=improvement_data)
+        
+        if success:
+            required_fields = ['original_prompt', 'improved_prompt', 'prompt_id', 'prompt_name']
+            missing_fields = [field for field in required_fields if field not in response]
+            
+            if not missing_fields:
+                self.log(f"   ✓ Improvement generated successfully")
+                self.log(f"   ✓ Original prompt length: {len(response['original_prompt'])}")
+                self.log(f"   ✓ Improved prompt length: {len(response['improved_prompt'])}")
+                
+                if len(response['improved_prompt']) > len(response['original_prompt']):
+                    self.log(f"   ✓ Improved prompt appears to be enhanced")
+                    return True
+                else:
+                    self.log(f"   ⚠️ Improved prompt may not be significantly different")
+                    return True  # Still counts as success if API works
+            else:
+                self.log(f"   ❌ Missing improvement fields: {missing_fields}")
+                return False
+        return False
+
+    def test_temperature_variations(self):
+        """Test different temperature values in experiments"""
+        temperatures = [0.0, 0.3, 0.7, 1.0]
+        
+        for temp in temperatures:
+            experiment_data = {
+                "query": "Wie wichtig ist eine Haftpflichtversicherung?",
+                "prompt_a_id": "zero-shot",
+                "prompt_b_id": "zero-shot",  # Same prompt to test temperature effect
+                "temperature": temp
+            }
+            
+            success, response = self.run_test(f"Temperature {temp} Test", "POST", "api/experiments/run", 200, data=experiment_data)
+            
+            if success and 'temperature' in response and response['temperature'] == temp:
+                self.log(f"   ✓ Temperature {temp} working correctly")
+            else:
+                self.log(f"   ❌ Temperature {temp} test failed")
+                return False
+                
+        self.log(f"   ✓ All temperature variations working")
+        return True
+
 def main():
     tester = SchutzKIAPITester()
     
@@ -192,6 +304,9 @@ def main():
         ("Basic Chat", tester.test_chat_basic),
         ("Session Chat", tester.test_chat_with_session),
         ("A/B Experiments", tester.test_experiments),
+        ("Human Evaluation", tester.test_human_evaluation),
+        ("AI Prompt Improvement", tester.test_prompt_improvement),
+        ("Temperature Variations", tester.test_temperature_variations),
         ("Experiment History", tester.test_get_experiments),
         ("Evaluation History", tester.test_get_evaluations),
         ("Insurance Recommendations", tester.test_recommendations),
