@@ -1,0 +1,173 @@
+{
+  "design_system": {
+    "identity": {
+      "name": "SchutzKI",
+      "vibe": "Digital Swiss Ecology",
+      "core_values": [
+        "Trustworthy",
+        "Intelligent",
+        "Precise",
+        "Human-Centric"
+      ]
+    },
+    "typography": {
+      "font_family": {
+        "headings": "Manrope, sans-serif",
+        "body": "Inter, sans-serif",
+        "code": "JetBrains Mono, monospace"
+      },
+      "scale": {
+        "h1": "text-4xl md:text-5xl font-bold tracking-tight text-primary",
+        "h2": "text-3xl font-semibold tracking-tight text-primary",
+        "h3": "text-2xl font-semibold text-primary",
+        "body_lg": "text-lg leading-relaxed text-slate-600",
+        "body": "text-base leading-relaxed text-slate-600",
+        "caption": "text-sm text-slate-500",
+        "mono": "font-mono text-sm text-slate-700"
+      },
+      "imports": [
+        "@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Manrope:wght@500;700;800&display=swap');"
+      ]
+    },
+    "colors": {
+      "palette": {
+        "primary": {
+          "DEFAULT": "#064e3b",
+          "foreground": "#ffffff",
+          "hover": "#022c22"
+        },
+        "secondary": {
+          "DEFAULT": "#10b981",
+          "foreground": "#ffffff",
+          "hover": "#059669"
+        },
+        "accent": {
+          "DEFAULT": "#f97316",
+          "foreground": "#ffffff",
+          "hover": "#ea580c"
+        },
+        "background": {
+          "DEFAULT": "#f8fafc",
+          "secondary": "#f1f5f9"
+        },
+        "surface": {
+          "DEFAULT": "#ffffff",
+          "foreground": "#0f172a"
+        },
+        "border": {
+          "DEFAULT": "#e2e8f0"
+        },
+        "muted": {
+          "DEFAULT": "#64748b"
+        }
+      },
+      "semantic": {
+        "success": "#10b981",
+        "warning": "#f59e0b",
+        "error": "#ef4444",
+        "info": "#3b82f6"
+      }
+    },
+    "layout": {
+      "spacing": {
+        "container_padding": "p-6 md:p-8 lg:p-12",
+        "section_gap": "gap-8 md:gap-12",
+        "card_padding": "p-6"
+      },
+      "radius": {
+        "default": "rounded-xl",
+        "button": "rounded-full",
+        "card": "rounded-2xl",
+        "input": "rounded-lg"
+      },
+      "shadows": {
+        "card": "shadow-sm hover:shadow-md transition-shadow duration-200",
+        "float": "shadow-lg shadow-emerald-900/5",
+        "inner": "shadow-inner"
+      }
+    },
+    "components": {
+      "buttons": {
+        "primary": "bg-primary text-primary-foreground hover:bg-primary/90 px-6 py-2.5 rounded-full font-medium transition-all duration-200 shadow-sm hover:shadow-md active:scale-95",
+        "secondary": "bg-white text-primary border border-gray-200 hover:bg-gray-50 px-6 py-2.5 rounded-full font-medium transition-all duration-200 shadow-sm",
+        "accent": "bg-accent text-accent-foreground hover:bg-accent/90 px-6 py-2.5 rounded-full font-medium shadow-md hover:shadow-lg transition-all active:scale-95",
+        "ghost": "text-slate-600 hover:text-primary hover:bg-emerald-50 px-4 py-2 rounded-lg font-medium transition-colors"
+      },
+      "cards": {
+        "base": "bg-white border border-gray-100 rounded-2xl shadow-sm p-6",
+        "interactive": "bg-white border border-gray-100 rounded-2xl shadow-sm p-6 hover:border-emerald-200 hover:shadow-md transition-all duration-200 cursor-pointer group",
+        "highlight": "bg-emerald-50 border border-emerald-100 rounded-2xl p-6"
+      },
+      "inputs": {
+        "base": "flex h-11 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-shadow",
+        "code": "font-mono bg-slate-50 border-slate-200 focus-visible:ring-blue-500"
+      }
+    },
+    "pages": {
+      "chat": {
+        "layout": "floating_island",
+        "bg_class": "bg-gradient-to-b from-slate-50 to-white",
+        "container": "max-w-4xl mx-auto h-[calc(100vh-4rem)]",
+        "message_bubbles": {
+          "user": "bg-primary text-white rounded-2xl rounded-tr-sm px-5 py-3 shadow-sm max-w-[85%]",
+          "ai": "bg-white border border-gray-100 text-slate-800 rounded-2xl rounded-tl-sm px-5 py-3 shadow-sm max-w-[85%]"
+        }
+      },
+      "dashboard": {
+        "layout": "bento_grid",
+        "bg_class": "bg-slate-50/50",
+        "grid_cols": "grid-cols-1 md:grid-cols-2 lg:grid-cols-4"
+      },
+      "prompt_lab": {
+        "layout": "split_pane",
+        "bg_class": "bg-slate-50",
+        "editor_theme": "light_modern"
+      }
+    }
+  },
+  "assets": {
+    "images": {
+      "hero_agent": "https://images.unsplash.com/photo-1738750908048-14200459c3c9?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDZ8MHwxfHNlYXJjaHw0fHxmcmllbmRseSUyMGluc3VyYW5jZSUyMGFnZW50JTIwcG9ydHJhaXR8ZW58MHx8fHwxNzczNDEwODQzfDA&ixlib=rb-4.1.0&q=85",
+      "home_context": "https://images.unsplash.com/photo-1628744876497-eb30460be9f6?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzl8MHwxfHNlYXJjaHwzfHxtb2Rlcm4lMjBmYW1pbHklMjBob21lJTIwbGl2aW5nJTIwcm9vbXxlbnwwfHx8fDE3NzM0MTA4NDR8MA&ixlib=rb-4.1.0&q=85",
+      "auto_context": "https://images.unsplash.com/photo-1765679406968-343b8b84480c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDZ8MHwxfHNlYXJjaHwyfHxsdXh1cnklMjBjYXIlMjBvbiUyMHJvYWQlMjBzY2VuaWN8ZW58MHx8fHwxNzczNDEwODQ1fDA&ixlib=rb-4.1.0&q=85",
+      "tech_abstract": "https://images.unsplash.com/photo-1698668975271-2ba9a323be6b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NjV8MHwxfHNlYXJjaHwzfHxhYnN0cmFjdCUyMGRpZ2l0YWwlMjBkYXRhJTIwZmxvdyUyMHNlcnZlcnxlbnwwfHx8fDE3NzM0MTA4NDV8MA&ixlib=rb-4.1.0&q=85"
+    },
+    "icons": {
+      "library": "lucide-react",
+      "preferred_set": [
+        "ShieldCheck",
+        "MessageSquare",
+        "Zap",
+        "BarChart3",
+        "FileText",
+        "Settings",
+        "Sparkles",
+        "History"
+      ]
+    }
+  },
+  "implementation_rules": {
+    "general": [
+      "Use 'sonner' for toast notifications.",
+      "Use 'recharts' for data visualization.",
+      "Ensure all interactive elements have data-testid attributes.",
+      "Do NOT use gradients for backgrounds, use solid colors or subtle patterns.",
+      "Use Shadcn components for complex interactions (Dialog, Popover, etc) but style them with the design system rules."
+    ],
+    "animation": {
+      "library": "framer-motion",
+      "rules": [
+        "Micro-interactions on hover for all cards and buttons.",
+        "Staggered entrance for list items.",
+        "Smooth page transitions using AnimatePresence."
+      ]
+    },
+    "accessibility": {
+      "rules": [
+        "Ensure color contrast meets WCAG AA standards (4.5:1).",
+        "Interactive elements must have a minimum target size of 44x44px.",
+        "Support keyboard navigation for all custom components."
+      ]
+    }
+  }
+}
