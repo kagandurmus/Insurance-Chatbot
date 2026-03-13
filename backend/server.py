@@ -1,8 +1,8 @@
-from fastapi import FastAPI, APIRouter, HTTPException, UploadFile, File
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, APIRouter, HTTPException
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
+from rouge_score import rouge_scorer
 import os
 import logging
 from pathlib import Path
@@ -10,10 +10,8 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timezone
-import asyncio
-import json
-import aiofiles
-from emergentintegrations.llm.chat import LlmChat, UserMessage
+import google.generativeai as genai
+from contextlib import asynccontextmanager
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -24,7 +22,8 @@ client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
 # LLM Configuration
-EMERGENT_KEY = os.environ.get('EMERGENT_LLM_KEY')
+GEMINI_KEY = os.environ.get('GEMINI_API_KEY')
+genai.configure(api_key=GEMINI_KEY)
 
 # Create the main app
 app = FastAPI(title="SchutzKI - German Insurance Chatbot")
@@ -178,18 +177,15 @@ KNOWLEDGE_BASE = build_knowledge_base()
 
 # ==================== LLM HELPERS ====================
 
-async def get_llm_response(prompt: str, system_message: str, session_id: str, temperature: float = 0.7) -> str:
-    """Get response from Gemini Flash with configurable temperature"""
+async def get_llm_response(prompt: str, system_message: str, temperature: float = 0.7) -> str:
     try:
-        chat = LlmChat(
-            api_key=EMERGENT_KEY,
-            session_id=session_id,
-            system_message=system_message
-        ).with_model("gemini", "gemini-3-flash-preview")
-        
-        user_msg = UserMessage(text=prompt)
-        response = await chat.send_message(user_msg)
-        return response
+        model = genai.GenerativeModel(
+            model_name="gemini-2.0-flash",
+            system_instruction=system_message,
+            generation_config={"temperature": temperature}
+        )
+        response = await model.generate_content_async(prompt)
+        return response.text
     except Exception as e:
         logger.error(f"LLM Error: {e}")
         raise HTTPException(status_code=500, detail=f"LLM Error: {str(e)}")
@@ -403,7 +399,6 @@ async def get_experiments():
 @api_router.post("/evaluate/{experiment_id}")
 async def evaluate_experiment(experiment_id: str, reference: str = ""):
     """Evaluate an experiment with ROUGE, BERTScore, and Faithfulness"""
-    from rouge_score import rouge_scorer
     
     exp = await db.experiments.find_one({"id": experiment_id}, {"_id": 0})
     if not exp:
@@ -671,6 +666,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.on_event("shutdown")
-async def shutdown_db_client():
+@asynccontextmanager                         
+async def lifespan(app: FastAPI):
+    yield
     client.close()
