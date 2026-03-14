@@ -10,7 +10,8 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timezone
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from rouge_score import rouge_scorer  
 
 ROOT_DIR = Path(__file__).parent
@@ -21,7 +22,7 @@ client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
 GEMINI_KEY = os.environ.get('GEMINI_API_KEY') 
-genai.configure(api_key=GEMINI_KEY)
+client_genai = genai.Client(api_key=GEMINI_KEY)
 
 @asynccontextmanager                         
 async def lifespan(app: FastAPI):
@@ -179,19 +180,23 @@ def build_knowledge_base():
 KNOWLEDGE_BASE = build_knowledge_base()
 
 # ==================== LLM HELPERS ====================
-
+    
 async def get_llm_response(prompt: str, system_message: str, temperature: float = 0.7) -> str:
     try:
-        model = genai.GenerativeModel(
-            model_name="gemini-2.0-flash",
-            system_instruction=system_message,
-            generation_config={"temperature": temperature}
+        response = await client_genai.aio.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=system_message,
+                temperature=float(temperature)
+            )
         )
-        response = await model.generate_content_async(prompt)
         return response.text
     except Exception as e:
         logger.error(f"LLM Error: {e}")
         raise HTTPException(status_code=500, detail=f"LLM Error: {str(e)}")
+
+
 
 def get_relevant_context(query: str) -> str:
     """Simple keyword-based retrieval from knowledge base"""
@@ -295,7 +300,7 @@ Benutzerfrage: {request.message}
 
 Bitte beantworte die Frage basierend auf dem Kontext."""
 
-    response = await get_llm_response(full_prompt, prompt_doc['system_prompt'], session_id)
+    response = await get_llm_response(full_prompt, prompt_doc['system_prompt'])
     
     # Save chat to database
     chat_doc = {
@@ -367,12 +372,9 @@ Benutzerfrage: {experiment.query}
 
 Bitte beantworte die Frage basierend auf dem Kontext."""
 
-    # Run both prompts with the specified temperature
-    session_a = f"exp-{uuid.uuid4()}-a"
-    session_b = f"exp-{uuid.uuid4()}-b"
     
-    response_a = await get_llm_response(full_prompt, prompt_a['system_prompt'], session_a, experiment.temperature)
-    response_b = await get_llm_response(full_prompt, prompt_b['system_prompt'], session_b, experiment.temperature)
+    response_a = await get_llm_response(full_prompt, prompt_a['system_prompt'])
+    response_b = await get_llm_response(full_prompt, prompt_b['system_prompt'])
     
     # Save experiment - create response dict first
     exp_id = str(uuid.uuid4())
@@ -553,7 +555,7 @@ Erstelle eine verbesserte Version dieses Prompts, die die Best Practices des Pro
 Der verbesserte Prompt sollte für einen deutschen Versicherungs-Chatbot (Haftpflicht, KFZ, Hausrat) optimiert sein."""
 
     session_id = f"improve-{uuid.uuid4()}"
-    improved_prompt = await get_llm_response(improvement_request, improvement_system, session_id, 0.7)
+    improved_prompt = await get_llm_response(improvement_request, improvement_system, 0.7)
     
     return {
         "original_prompt": prompt['system_prompt'],
@@ -669,7 +671,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@asynccontextmanager                         
-async def lifespan(app: FastAPI):
-    yield
-    client.close()
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True)
+
+
