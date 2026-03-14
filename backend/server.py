@@ -10,8 +10,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timezone
-from google import genai
-from google.genai import types
+import httpx
 from rouge_score import rouge_scorer  
 
 ROOT_DIR = Path(__file__).parent
@@ -21,8 +20,6 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-GEMINI_KEY = os.environ.get('GEMINI_API_KEY') 
-client_genai = genai.Client(api_key=GEMINI_KEY)
 
 @asynccontextmanager                         
 async def lifespan(app: FastAPI):
@@ -183,18 +180,21 @@ KNOWLEDGE_BASE = build_knowledge_base()
     
 async def get_llm_response(prompt: str, system_message: str, temperature: float = 0.7) -> str:
     try:
-        response = await client_genai.aio.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=system_message,
-                temperature=float(temperature)
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(
+                "http://localhost:11434/api/generate",
+                json={
+                    "model": "glm-4.7-flash",
+                    "prompt": f"System: {system_message}\n\nUser: {prompt}",
+                    "stream": False,
+                    "options": {"temperature": temperature}
+                }
             )
-        )
-        return response.text
+            return response.json()["response"]
     except Exception as e:
         logger.error(f"LLM Error: {e}")
         raise HTTPException(status_code=500, detail=f"LLM Error: {str(e)}")
+
 
 
 
